@@ -3,7 +3,10 @@ set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+LOCAL_BIN="$HOME/.local/bin"
+LOCAL_SHARE="$HOME/.local/share"
 SHELL_REPO="https://github.com/ZulfiFazhar/caelestia-topbar.git"
+OMDROP_REPO="https://github.com/netmojo-systems/omdrop-plugin.git"
 
 SKIP_CLONE=false
 SKIP_BUILD=false
@@ -99,15 +102,61 @@ link_path "$DOTFILES_DIR/hypr/scheme/default.lua" "$CONFIG_DIR/hypr/scheme/defau
 link_path "$DOTFILES_DIR/uwsm/env" "$CONFIG_DIR/uwsm/env"
 link_path "$DOTFILES_DIR/uwsm/env-hyprland" "$CONFIG_DIR/uwsm/env-hyprland"
 
-# 4. Custom shell repo
-if [[ "$SKIP_CLONE" == false && ! -e "$CONFIG_DIR/quickshell/caelestia" ]]; then
-    mkdir -p "$CONFIG_DIR/quickshell"
-    git clone "$SHELL_REPO" "$CONFIG_DIR/quickshell/caelestia"
+# 4. Local bin wrappers & AirDrop scripts
+for f in "$DOTFILES_DIR"/bin/*; do
+    [[ -f "$f" ]] || continue
+    link_path "$f" "$LOCAL_BIN/$(basename "$f")"
+done
+
+# 5. AirDrop config, icons, autostart, desktop entry, systemd user unit
+mkdir -p "$HOME/Downloads/AirDrop"
+link_path "$DOTFILES_DIR/airdrop" "$CONFIG_DIR/airdrop"
+
+for f in "$DOTFILES_DIR"/icons/*; do
+    link_path "$f" "$LOCAL_SHARE/icons/$(basename "$f")"
+done
+
+for f in "$DOTFILES_DIR"/applications/*; do
+    link_path "$f" "$LOCAL_SHARE/applications/$(basename "$f")"
+done
+
+for f in "$DOTFILES_DIR"/autostart/*; do
+    link_path "$f" "$CONFIG_DIR/autostart/$(basename "$f")"
+done
+
+link_path "$DOTFILES_DIR/systemd/user/airdrop-receiver.service" "$CONFIG_DIR/systemd/user/airdrop-receiver.service"
+link_path "$DOTFILES_DIR/systemd/user/airdrop-receiver.service.d/10-download-dir.conf" "$CONFIG_DIR/systemd/user/airdrop-receiver.service.d/10-download-dir.conf"
+
+# 6. Custom shell & omdrop repos
+if [[ "$SKIP_CLONE" == false ]]; then
+    if [[ ! -e "$CONFIG_DIR/quickshell/caelestia" ]]; then
+        mkdir -p "$CONFIG_DIR/quickshell"
+        git clone "$SHELL_REPO" "$CONFIG_DIR/quickshell/caelestia"
+    fi
+
+    if [[ ! -e "$LOCAL_SHARE/omdrop-plugin" ]]; then
+        mkdir -p "$LOCAL_SHARE"
+        git clone "$OMDROP_REPO" "$LOCAL_SHARE/omdrop-plugin"
+        git -C "$LOCAL_SHARE/omdrop-plugin" checkout -q cf0ccb4ae5cf560373cac2e5025ad496fcf9b2fa
+        if [[ -s "$DOTFILES_DIR/patches/omdrop.patch" ]]; then
+            git -C "$LOCAL_SHARE/omdrop-plugin" apply "$DOTFILES_DIR/patches/omdrop.patch"
+        fi
+    fi
+fi
+
+if [[ -e "$LOCAL_SHARE/omdrop-plugin/bin/omdrop" ]]; then
+    link_path "$LOCAL_SHARE/omdrop-plugin/bin/omdrop" "$LOCAL_BIN/omdrop"
+fi
+
+# Reload user systemd only in real user environment
+real_home="$(getent passwd "$(id -u)" | cut -d: -f6 || echo "$HOME")"
+if [[ "$HOME" == "$real_home" ]] && command -v systemctl &>/dev/null; then
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
 fi
 
 echo "Dotfiles linked to $CONFIG_DIR"
 
-# 5. Auto-build CMake C++ plugin when missing or --build passed
+# 7. Auto-build CMake C++ plugin when missing or --build passed
 if [[ "$SKIP_BUILD" == false ]]; then
     if [[ "$FORCE_BUILD" == true ]] || ! is_plugin_installed; then
         build_plugin

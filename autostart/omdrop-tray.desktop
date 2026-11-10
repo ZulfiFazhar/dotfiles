@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Omdrop Tray
+Comment=AirDrop System Tray Indicator
+Exec=omdrop-tray
+Icon=omdrop-radio
+Terminal=false
+Categories=Network;Utility;
+X-GNOME-Autostart-enabled=true

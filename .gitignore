@@ -1,3 +1,5 @@
 hypr/scheme/current.lua
 hypr/card-*
 *.bak*
+**/__pycache__
+*.pyc

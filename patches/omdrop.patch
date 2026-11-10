@@ -1,0 +1,235 @@
+diff --git a/bin/airdrop-serve.py b/bin/airdrop-serve.py
+index c1f614d..04a6770 100755
+--- a/bin/airdrop-serve.py
++++ b/bin/airdrop-serve.py
+@@ -157,6 +157,7 @@ MODEL = validate_model(args.model if args.model is not None else _cfg.get('model
+ _outdir = args.outdir if args.outdir is not None else _cfg.get('download_dir', os.path.join(pwd.getpwuid(os.getuid()).pw_dir, 'Downloads'))
+ # Resolved once; never chdir -- cwd is process-global and the server is threaded.
+ DEST = validate_download_dir(_outdir)
++IFACE = args.iface
+ MAX_RECEIVE_PERCENT = validate_receive_percent(
+     args.max_receive_percent if args.max_receive_percent is not None
+     else _cfg.get('max_receive_percent', DEFAULT_MAX_RECEIVE_PERCENT))
+@@ -762,6 +763,93 @@ def store_link(url, dest):
+ MEDIA_CAPABILITIES = b'{"SupportsAdjustmentBaseResources":true,"Version":3,"Codecs":{"hvc1":{"Profiles":{"VTIsHDRAllowedOnDevice":true,"VTSupportedProfiles":[1,2,3,4],"VTDoViIsHardwareAccelerated":true,"VTDoViSupportedLevels":["01","02","03","04","05","06","07","08","09"],"VTPerProfileSupport":{"3":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186},"1":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186},"4":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186},"2":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186}},"VTDoViSupportedProfiles":["05","08"]}},"CodecSupport":{"VTIsHDRAllowedOnDevice":true,"VTCodecSupportDict":{"apcs":{"VTIsHardwareAccelerated":true},"hvc1":{"VTIsHDRAllowedOnDevice":true,"VTPerProfileSupport":{"3":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186},"1":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186},"4":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186},"2":{"VTMaxPlaybackLevel":186,"VTIsHardwareAccelerated":true,"VTMaxDecodeLevel":186}},"VTSupportedProfiles":[1,2,3,4]},"apcn":{"VTIsHardwareAccelerated":true},"apch":{"VTIsHardwareAccelerated":true},"apco":{"VTIsHardwareAccelerated":true},"ap4x":{"VTIsHardwareAccelerated":true},"ap4h":{"VTIsHardwareAccelerated":true}}}},"ContainerFormats":{"public.heif-standard":{"HeifSubtypes":["public.avci","public.avif","public.heic","public.heics","public.heif"]}},"Vendor":{"com.apple":{"LivePhotoFormatVersion":"1","AssetBundleFormatVersion":"1"}}}'
+ 
+ 
++def play_sound(sound_name):
++    """Play feedback sound asynchronously."""
++    sound_files = {
++        'ask': '/usr/share/sounds/freedesktop/stereo/message-new-instant.oga',
++        'complete': '/usr/share/sounds/freedesktop/stereo/complete.oga',
++        'cancel': '/usr/share/sounds/freedesktop/stereo/dialog-warning.oga',
++    }
++    path = sound_files.get(sound_name)
++    if path and os.path.exists(path):
++        try:
++            subprocess.Popen(['pw-play', path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++        except Exception:
++            try:
++                subprocess.Popen(['canberra-gtk-play', '-f', path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++            except Exception:
++                pass
++
++
++def prompt_transfer_permission(sender, file_desc):
++    """Prompt the user with Zenity or notification action to accept/decline an incoming transfer."""
++    if IFACE == 'lo' or os.environ.get('OMDROP_AUTO_ACCEPT') == '1':
++        return True
++
++    play_sound('ask')
++
++    env = os.environ.copy()
++    uid = os.getuid()
++    if 'XDG_RUNTIME_DIR' not in env:
++        env['XDG_RUNTIME_DIR'] = f'/run/user/{uid}'
++    if 'WAYLAND_DISPLAY' not in env and os.path.exists(f"{env['XDG_RUNTIME_DIR']}/wayland-1"):
++        env['WAYLAND_DISPLAY'] = 'wayland-1'
++    if 'DISPLAY' not in env:
++        env['DISPLAY'] = ':0'
++
++    # Display alert banner
++    try:
++        subprocess.Popen([
++            'notify-send',
++            '-a', 'AirDrop',
++            '-i', 'omdrop-radio',
++            '-u', 'critical',
++            'AirDrop: Incoming Transfer',
++            f'{sender} wants to send {file_desc}'
++        ], env=env)
++    except Exception:
++        pass
++
++    # Prompt with Zenity dialog
++    try:
++        text = f"<b>{sender}</b> wants to send <b>{file_desc}</b>.\n\nAccept this transfer?"
++        res = subprocess.run([
++            'zenity',
++            '--question',
++            '--title=AirDrop Transfer',
++            f'--text={text}',
++            '--ok-label=Accept',
++            '--cancel-label=Decline',
++            '--timeout=30',
++            '--icon-name=omdrop-radio'
++        ], env=env, capture_output=True, timeout=35)
++        accepted = (res.returncode == 0)
++        logging.info('zenity permission prompt for %s: accepted=%s (rc=%d)', sender, accepted, res.returncode)
++        return accepted
++    except Exception as e:
++        logging.warning('zenity prompt failed: %s, checking notify-send fallback', e)
++
++    # Fallback to notify-send with action buttons
++    try:
++        res = subprocess.run([
++            'notify-send',
++            '-a', 'AirDrop',
++            '-i', 'omdrop-radio',
++            '-u', 'critical',
++            '-t', '30000',
++            '-A', 'accept=Accept',
++            '-A', 'decline=Decline',
++            f'AirDrop from {sender}',
++            f'{sender} wants to send {file_desc}'
++        ], env=env, capture_output=True, text=True, timeout=35)
++        accepted = ('accept' in res.stdout.strip().lower())
++        logging.info('notify-send permission prompt for %s: accepted=%s', sender, accepted)
++        return accepted
++    except Exception as e:
++        logging.error('all permission prompts failed: %s', e)
++        return False
++
++
+ class Handler(BaseHTTPRequestHandler):
+     """AirDrop's receiving endpoints, as sharingd (AirDrop/1.0, macOS 15) and
+     iOS actually send them:
+@@ -977,6 +1065,26 @@ class Handler(BaseHTTPRequestHandler):
+             # so an Upload that never passed an Ask has nothing vouching for it.
+             self._contacts_ok = True
+ 
++        # Ask user for permission to accept incoming files/links
++        sender_name = ask.get('SenderComputerName') or 'Apple Device'
++        if files:
++            first_name = files[0].get('FileName') or 'file'
++            if len(files) == 1:
++                file_desc = f'"{first_name}"'
++            else:
++                file_desc = f'"{first_name}" and {len(files) - 1} other files'
++        elif items:
++            file_desc = f'{len(items)} items/links'
++        else:
++            file_desc = 'file'
++
++        if not prompt_transfer_permission(sender_name, file_desc):
++            logging.warning('ask REFUSED by user: %s for %s', sender_name, file_desc)
++            self.send_response(403)
++            self.send_header('Content-Length', '0')
++            self.end_headers()
++            return
++
+         # A `links` transfer is Ask-only: with SUPPORTS_URL (0x01) advertised,
+         # iOS puts the URL straight into Items and sends no /Upload at all, so
+         # accepting the Ask IS the transfer. Store it, or the link is lost.
+diff --git a/bin/omdrop b/bin/omdrop
+index 5738a91..1452da0 100755
+--- a/bin/omdrop
++++ b/bin/omdrop
+@@ -453,6 +453,14 @@ setting_set() {
+ # sees it.
+ tildify() { local p=$1; printf '%s\n' "${p/#$HOME/\~}"; }
+ 
++play_sound() {
++  [[ "${OMDROP_MUTE:-0}" == "1" ]] && return 0
++  local snd="/usr/share/sounds/freedesktop/stereo/${1:-complete}.oga"
++  if [[ -f "$snd" ]]; then
++    (pw-play "$snd" >/dev/null 2>&1 || canberra-gtk-play -f "$snd" >/dev/null 2>&1 || true) &
++  fi
++}
++
+ default_name() { hostname -s 2>/dev/null || echo omdrop; }
+ effective_name() { local n; n=$(cfg_get name); [[ -n "$n" ]] && printf '%s\n' "$n" || default_name; }
+ effective_dir() { local d; d=$(cfg_get download_dir); [[ -n "$d" ]] && printf '%s\n' "$d" || printf '%s\n' "$HOME/Downloads"; }
+@@ -2255,13 +2263,36 @@ Or turn it on first, with: omdrop on"
+   mark_sending "${to:-$PEER}" || true
+   trap unmark_sending EXIT
+ 
++  local send_rc
+   if (( verbose )); then
+     # Verbose is for bug reports: the protocol log, and redacted dumps of each
+     # request and answer in the runtime directory (docs/identity-contract.md).
+     OMDROP_DEBUG=1 run_cancellable "${cmd[@]}"
+-    return
++    send_rc=$?
++  else
++    run_cancellable send_narrated
++    send_rc=$?
++  fi
++
++  local desc; desc=$(describe_files "${files[@]}")
++  if [[ -z "$desc" && ${#urls[@]} -gt 0 ]]; then
++    desc="link"
+   fi
+-  run_cancellable send_narrated
++  local target_name="${to:-$PEER}"
++  if command -v notify-send >/dev/null 2>&1; then
++    if (( send_rc == 0 )); then
++      play_sound "complete"
++      notify-send -a "AirDrop" -i "omdrop-radio" -t 6000 \
++        "AirDrop: File Sent" \
++        "Successfully sent $desc to $target_name" >/dev/null 2>&1 || true
++    else
++      play_sound "dialog-warning"
++      notify-send -a "AirDrop" -i "omdrop-radio" -u normal -t 6000 \
++        "AirDrop: Send Failed" \
++        "Failed to send $desc to $target_name" >/dev/null 2>&1 || true
++    fi
++  fi
++  return "$send_rc"
+ }
+ 
+ # PIPESTATUS, not $?: the narrator always succeeds, and the answer to "did
+@@ -3050,6 +3081,7 @@ heif_to_jpeg() {
+ 
+ act_notify() {
+   local f=$1 args=()
++  play_sound "complete"
+   copy_to_clipboard "$f"
+   # Only images get a thumbnail, the way a screenshot notification does.
+   case "${f,,}" in
+@@ -3073,9 +3105,32 @@ act_notify() {
+   # claiming the urgency of one.
+   local what="Saved to $(tildify "$(dirname "$f")")/"
+   command -v wl-copy >/dev/null 2>&1 && what="Copied to clipboard, saved to $(tildify "$(dirname "$f")")/"
+-  omarchy-notification-send -t 8000 "$(basename "$f")" "$what (or click this)" \
+-    "${args[@]}" --exec "$SELF" act open "$f" >/dev/null \
+-    || echo "omdrop: notification failed for $f" >&2
++  if command -v omarchy-notification-send >/dev/null 2>&1; then
++    omarchy-notification-send -t 8000 "$(basename "$f")" "$what (or click this)" \
++      "${args[@]}" --exec "$SELF" act open "$f" >/dev/null \
++      || echo "omdrop: notification failed for $f" >&2
++  elif command -v notify-send >/dev/null 2>&1; then
++    local -a n_args=(-a "AirDrop" -t 8000)
++    if [[ -n "${preview:-}" && -f "$preview" ]]; then
++      n_args+=(-i "$preview")
++    elif [[ "${f,,}" =~ \.(png|jpg|jpeg|gif|webp)$ ]]; then
++      n_args+=(-i "$f")
++    else
++      n_args+=(-i "omdrop-radio")
++    fi
++    (
++      local act
++      act=$(notify-send "${n_args[@]}" -A "open=Open File" -A "folder=Open Folder" \
++        "AirDrop: File Received" "$(basename "$f")\n$what" 2>/dev/null || true)
++      if [[ "$act" == "open" ]]; then
++        "$SELF" act open "$f"
++      elif [[ "$act" == "folder" ]]; then
++        "$SELF" act browse "$f"
++      fi
++    ) &
++  else
++    echo "omdrop: notification failed for $f (no notification daemon found)" >&2
++  fi
+ }
+ 
+ # What to do with a file once the user has asked for it: `act open` is what the

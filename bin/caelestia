@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Adaptive wrapper: use Mesa fallback only when NVIDIA is Hyprland primary DRM (avoids eglSwapBuffers 0x300d)
+REAL_CAELESTIA="/usr/bin/caelestia"
+
+if [ "${1:-}" = "shell" ]; then
+    primary_drm="${AQ_DRM_DEVICES%%:*}"
+    if [[ "$primary_drm" == *"nvidia"* ]]; then
+        export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+    fi
+fi
+
+exec "$REAL_CAELESTIA" "$@"

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export DISPLAY="${DISPLAY:-:0}"
+export PATH="$HOME/.local/bin:$PATH"
+
+play_snd() {
+  local snd="/usr/share/sounds/freedesktop/stereo/${1:-dialog-information}.oga"
+  if [[ -f "$snd" ]]; then
+    (pw-play "$snd" >/dev/null 2>&1 || canberra-gtk-play -f "$snd" >/dev/null 2>&1 || true) &
+  fi
+}
+
+if omdrop status --json 2>/dev/null | grep -q '"receiving":true'; then
+  omdrop off >/dev/null 2>&1 || true
+  play_snd "device-removed"
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 3000 "AirDrop Disabled" "AirDrop is now inactive."
+else
+  omdrop on 10m >/dev/null 2>&1 || true
+  play_snd "device-added"
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 4000 "AirDrop Active (10 Minutes)" "Discoverable by nearby Apple devices."
+fi

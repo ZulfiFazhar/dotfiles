@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Omdrop link opener
+Comment=Open a link an Apple device sent over AirDrop in the web browser
+Exec=omdrop open-link %f
+MimeType=application/x-mswinurl;application/x-webloc;
+NoDisplay=true
+Terminal=false

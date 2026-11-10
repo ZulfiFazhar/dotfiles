@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export DISPLAY="${DISPLAY:-:0}"
+export PATH="$HOME/.local/bin:$PATH"
+
+clip_types=$(wl-paste --list-types 2>/dev/null || true)
+
+# 1. Image in clipboard
+if echo "$clip_types" | grep -q 'image/png'; then
+  tmp_img="/tmp/airdrop_clipboard_$(date +%s).png"
+  wl-paste --type image/png > "$tmp_img"
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 3000 "AirDrop Quick Share" "Sending image from clipboard..."
+  exec omdrop-send-gui "$tmp_img"
+fi
+
+# 2. Files / URI list in clipboard
+if echo "$clip_types" | grep -q 'text/uri-list'; then
+  uris=$(wl-paste --type text/uri-list 2>/dev/null || true)
+  files=()
+  while IFS= read -r uri; do
+    [[ -n "$uri" ]] || continue
+    if [[ "$uri" =~ ^file://(.*)$ ]]; then
+      decoded=$(python3 -c "import urllib.parse, sys; print(urllib.parse.unquote(sys.argv[1]))" "${BASH_REMATCH[1]}")
+      [[ -e "$decoded" ]] && files+=("$decoded")
+    fi
+  done <<< "$uris"
+  if (( ${#files[@]} > 0 )); then
+    notify-send -a "AirDrop" -i "omdrop-radio" -t 3000 "AirDrop Quick Share" "Sending ${#files[@]} file(s) from clipboard..."
+    exec omdrop-send-gui "${files[@]}"
+  fi
+fi
+
+# 3. Plain text / Web Link
+text=$(wl-paste --no-newline 2>/dev/null || true)
+if [[ "$text" =~ ^https?:// ]]; then
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 3000 "AirDrop Quick Share" "Sending link: $text"
+  exec omdrop-send-gui "$text"
+elif [[ -f "$text" ]]; then
+  exec omdrop-send-gui "$text"
+elif [[ -n "$text" ]]; then
+  tmp_txt="/tmp/airdrop_note_$(date +%s).txt"
+  printf '%s\n' "$text" > "$tmp_txt"
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 3000 "AirDrop Quick Share" "Sending text from clipboard..."
+  exec omdrop-send-gui "$tmp_txt"
+else
+  # Clipboard empty: open file picker
+  exec omdrop-send-gui
+fi

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -e
+export PATH="$HOME/.local/bin:$PATH"
+
+action="${1:-}"
+shift || true
+
+case "$action" in
+    open-dir)
+        target="${1:-$HOME/Downloads/AirDrop}"
+        target="${target/#\~/$HOME}"
+        mkdir -p "$target"
+        exec thunar "$target"
+        ;;
+    open-file)
+        file="${1:-}"
+        if [ -n "$file" ] && [ -e "$file" ]; then
+            exec xdg-open "$file"
+        fi
+        ;;
+    pick-dir)
+        dir=$(zenity --file-selection --directory --title="Select AirDrop Download Folder" 2>/dev/null || true)
+        if [ -n "$dir" ]; then
+            omdrop dir "$dir"
+        fi
+        ;;
+    send-files)
+        exec omdrop-send-gui
+        ;;
+    send-to-peer)
+        mac="${1:-}"
+        if [ -n "$mac" ]; then
+            chosen=$(zenity --file-selection --multiple --separator="|" --title="Send via AirDrop to $mac" 2>/dev/null || true)
+            if [ -n "$chosen" ]; then
+                IFS="|" read -r -a files <<< "$chosen"
+                exec omdrop send --to "$mac" "${files[@]}"
+            fi
+        fi
+        ;;
+    recent)
+        python3 -c '
+import os, json
+dl_dir = os.popen("omdrop dir 2>/dev/null").read().strip() or os.path.expanduser("~/Downloads/AirDrop")
+if not os.path.isdir(dl_dir):
+    print("[]")
+    exit(0)
+try:
+    files = [os.path.join(dl_dir, f) for f in os.listdir(dl_dir) if os.path.isfile(os.path.join(dl_dir, f))]
+    files.sort(key=os.path.getmtime, reverse=True)
+    items = []
+    for f in files[:3]:
+        st = os.stat(f)
+        size_mb = st.st_size / (1024 * 1024)
+        size_str = f"{size_mb:.1f} MB" if size_mb >= 1 else f"{max(1, st.st_size // 1024)} KB"
+        ext = os.path.splitext(f)[1].lower().lstrip(".")
+        items.append({
+            "name": os.path.basename(f),
+            "path": f,
+            "size": size_str,
+            "ext": ext
+        })
+    print(json.dumps(items))
+except Exception:
+    print("[]")
+'
+        ;;
+esac

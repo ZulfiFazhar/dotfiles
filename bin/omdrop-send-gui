@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure environment variables for Wayland / display
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export DISPLAY="${DISPLAY:-:0}"
+export PATH="$HOME/.local/bin:$PATH"
+
+play_snd() {
+  local snd="/usr/share/sounds/freedesktop/stereo/${1:-complete}.oga"
+  if [[ -f "$snd" ]]; then
+    (pw-play "$snd" >/dev/null 2>&1 || canberra-gtk-play -f "$snd" >/dev/null 2>&1 || true) &
+  fi
+}
+
+# 1. Collect files / URLs to send
+files=()
+if (( $# == 0 )); then
+  chosen=$(zenity --file-selection --multiple --separator="|" --title="Select Files to Send via AirDrop" 2>/dev/null || true)
+  [[ -n "$chosen" ]] || exit 0
+  IFS="|" read -r -a files <<< "$chosen"
+else
+  files=("$@")
+fi
+
+(( ${#files[@]} > 0 )) || exit 0
+
+# 2. Check if omdrop is running, if not turn on 10m
+if ! omdrop status --json 2>/dev/null | grep -q '"receiving":true'; then
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 4000 "AirDrop" "Enabling AirDrop (10 minutes)..."
+  if ! omdrop on 10m >/dev/null 2>&1; then
+    notify-send -a "AirDrop" -i "omdrop-radio" -u critical "AirDrop" "Failed to enable AirDrop."
+    exit 1
+  fi
+  sleep 1.5
+fi
+
+# 3. Look for peers
+notify-send -a "AirDrop" -i "omdrop-radio" -t 4000 "AirDrop" "Searching for nearby Apple devices..."
+
+peers_raw=$(omdrop peers --json 2>/dev/null || echo "[]")
+mapfile -t peer_lines < <(python3 -c '
+import json, sys
+try:
+    peers = json.loads(sys.argv[1])
+    for p in peers:
+        name = p.get("name") or "Apple Device"
+        mac = p.get("mac")
+        rssi = f"{p.get(\"rssi\")} dBm" if p.get("rssi") is not None else "?"
+        if mac:
+            print(f"{mac}|{name} ({rssi})")
+except Exception:
+    pass
+' "$peers_raw")
+
+target_mac=""
+if (( ${#peer_lines[@]} == 0 )); then
+  # No peers from passive scan, try omdrop send directly (active lookup)
+  notify-send -a "AirDrop" -i "omdrop-radio" -t 6000 "AirDrop" "Searching for active devices..."
+  omdrop send "${files[@]}"
+  exit $?
+elif (( ${#peer_lines[@]} == 1 )); then
+  target_mac="${peer_lines[0]%%|*}"
+else
+  # Multiple peers, show Zenity picker
+  zenity_args=()
+  for p in "${peer_lines[@]}"; do
+    mac="${p%%|*}"
+    label="${p#*|}"
+    zenity_args+=("$mac" "$label")
+  done
+  selected=$(zenity --list --title="Select AirDrop Recipient" \
+    --column="MAC Address" --column="Device Name" \
+    --text="Choose the target Apple device:" \
+    --timeout=30 "${zenity_args[@]}" 2>/dev/null || true)
+  if [[ -n "$selected" ]]; then
+    target_mac="$selected"
+  else
+    exit 0
+  fi
+fi
+
+if [[ -n "$target_mac" ]]; then
+  omdrop send --to "$target_mac" "${files[@]}"
+else
+  omdrop send "${files[@]}"
+fi
