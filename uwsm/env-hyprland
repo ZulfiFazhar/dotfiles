@@ -1,0 +1,10 @@
+# Aquamarine / Multi-GPU configuration (Adaptive)
+# - External HDMI connected on NVIDIA -> NVIDIA primary (zero-copy HDMI scanout)
+# - Otherwise -> AMD iGPU primary (power saving, native Wayland EGL)
+if grep -q "^connected" /sys/bus/pci/devices/0000:01:00.0/drm/card*/card*-*/status 2>/dev/null || grep -q "^connected" /sys/class/drm/card*-HDMI-*/status 2>/dev/null; then
+    export AQ_DRM_DEVICES="$HOME/.config/hypr/card-nvidia:$HOME/.config/hypr/card-amd"
+else
+    export AQ_DRM_DEVICES="$HOME/.config/hypr/card-amd:$HOME/.config/hypr/card-nvidia"
+fi
+export AQ_FORCE_LINEAR_BLIT=0
+export MOZ_ENABLE_WAYLAND=1

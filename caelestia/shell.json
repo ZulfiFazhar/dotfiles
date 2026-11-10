@@ -1,0 +1,30 @@
+{
+    "appearance": {
+        "transparency": {
+            "enabled": true
+        }
+    },
+    "background": {
+        "wallpaperEnabled": true
+    },
+    "bar": {
+        "tray": {
+            "recolour": true
+        },
+        "workspaces": {
+            "activeIndicator": true,
+            "activeTrail": true,
+            "perMonitor": true,
+            "showUnoccupied": true,
+            "showWindows": true,
+            "shown": 5
+        }
+    },
+    "dashboard": {
+        "enabled": true,
+        "showClockSeconds": false
+    },
+    "sidebar": {
+        "enabled": true
+    }
+}
