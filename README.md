@@ -9,6 +9,7 @@ Konfigurasi Hyprland (Lua), Caelestia custom topbar shell, dan integrasi AirDrop
 - `uwsm/` — Environment variables (`env`, `env-hyprland` adaptive multi-GPU)
 - `bin/` — Wrapper `caelestia` (NVIDIA EGL fallback) dan helper AirDrop (`omdrop-tray`, `omdrop-toggle`, `omdrop-send-gui`, `omdrop-quick-share`, `omdrop-gui-action`)
 - `airdrop/`, `systemd/`, `autostart/`, `icons/`, `applications/`, `patches/` — Config, tray autostart, systemd receiver, dan patch prompt Zenity + notifikasi untuk `omdrop-plugin`
+- `fish/`, `foot/`, `zed/`, `spicetify/`, `starship.toml` — Config shell, terminal, editor, dan tema Spotify Caelestia
 - `setup.sh` — Link semua config, clone `caelestia-topbar` & `omdrop-plugin`, apply patch, dan auto-build plugin C++ CMake jika belum terinstall
 - `verify.sh` — Self-test syntax, symlink, dan alur build CMake
 

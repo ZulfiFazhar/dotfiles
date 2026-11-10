@@ -19,6 +19,12 @@ for f in "$DOTFILES_DIR"/bin/*; do
     fi
 done
 
+if command -v fish &>/dev/null; then
+    fish -n "$DOTFILES_DIR/fish/config.fish"
+    fish -n "$DOTFILES_DIR/fish/functions/fish_greeting.fish"
+    fish -n "$DOTFILES_DIR/fish/completions/bun.fish"
+fi
+
 [[ -s "$DOTFILES_DIR/patches/omdrop.patch" ]] || { echo "FAIL: omdrop.patch empty"; exit 1; }
 
 # Prepare fake omdrop-plugin to test omdrop link too
@@ -54,12 +60,23 @@ for target in \
     "$TMP_HOME/.local/bin/omdrop-send-gui" \
     "$TMP_HOME/.local/bin/omdrop-quick-share" \
     "$TMP_HOME/.local/share/icons/omdrop-radio.svg" \
-    "$TMP_HOME/.local/share/applications/netmojo.omdrop-links.desktop"
+    "$TMP_HOME/.local/share/applications/netmojo.omdrop-links.desktop" \
+    "$TMP_HOME/.config/starship.toml" \
+    "$TMP_HOME/.config/foot" \
+    "$TMP_HOME/.config/fish/config.fish" \
+    "$TMP_HOME/.config/fish/functions/fish_greeting.fish" \
+    "$TMP_HOME/.config/fish/completions/bun.fish" \
+    "$TMP_HOME/.config/zed/settings.json" \
+    "$TMP_HOME/.config/zed/keymap.json" \
+    "$TMP_HOME/.config/zed/themes/caelestia.json" \
+    "$TMP_HOME/.config/spicetify/Themes/caelestia"
 do
     [[ -L "$target" && -e "$target" ]] || { echo "FAIL: broken link $target"; exit 1; }
 done
 
 [[ -d "$TMP_HOME/Downloads/AirDrop" ]] || { echo "FAIL: Downloads/AirDrop not created"; exit 1; }
+grep -q "prefs_path             = $TMP_HOME/.config/spotify/prefs" "$TMP_HOME/.config/spicetify/config-xpui.ini" \
+    || { echo "FAIL: spicetify prefs_path not substituted"; exit 1; }
 
 # Verify CMake build invocation using mock binaries
 mkdir -p "$TMP_HOME/bin" "$TMP_HOME/.config/quickshell/caelestia"

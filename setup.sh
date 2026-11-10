@@ -127,6 +127,24 @@ done
 link_path "$DOTFILES_DIR/systemd/user/airdrop-receiver.service" "$CONFIG_DIR/systemd/user/airdrop-receiver.service"
 link_path "$DOTFILES_DIR/systemd/user/airdrop-receiver.service.d/10-download-dir.conf" "$CONFIG_DIR/systemd/user/airdrop-receiver.service.d/10-download-dir.conf"
 
+# 6. App configs (fish, foot, zed, spicetify, starship)
+link_path "$DOTFILES_DIR/starship.toml" "$CONFIG_DIR/starship.toml"
+link_path "$DOTFILES_DIR/foot" "$CONFIG_DIR/foot"
+
+link_path "$DOTFILES_DIR/fish/config.fish" "$CONFIG_DIR/fish/config.fish"
+link_path "$DOTFILES_DIR/fish/functions/fish_greeting.fish" "$CONFIG_DIR/fish/functions/fish_greeting.fish"
+link_path "$DOTFILES_DIR/fish/completions/bun.fish" "$CONFIG_DIR/fish/completions/bun.fish"
+
+link_path "$DOTFILES_DIR/zed/settings.json" "$CONFIG_DIR/zed/settings.json"
+link_path "$DOTFILES_DIR/zed/keymap.json" "$CONFIG_DIR/zed/keymap.json"
+link_path "$DOTFILES_DIR/zed/themes/caelestia.json" "$CONFIG_DIR/zed/themes/caelestia.json"
+
+link_path "$DOTFILES_DIR/spicetify/Themes/caelestia" "$CONFIG_DIR/spicetify/Themes/caelestia"
+if [[ ! -e "$CONFIG_DIR/spicetify/config-xpui.ini" ]]; then
+    mkdir -p "$CONFIG_DIR/spicetify"
+    sed "s|__CONFIG_DIR__|$CONFIG_DIR|g" "$DOTFILES_DIR/spicetify/config-xpui.ini" > "$CONFIG_DIR/spicetify/config-xpui.ini"
+fi
+
 # 6. Custom shell & omdrop repos
 if [[ "$SKIP_CLONE" == false ]]; then
     if [[ ! -e "$CONFIG_DIR/quickshell/caelestia" ]]; then

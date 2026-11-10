@@ -1,0 +1,119 @@
+// Zed settings
+//
+// For information on how to configure Zed, see the Zed
+// documentation: https://zed.dev/docs/configuring-zed
+//
+// To see all of Zed's default settings without changing your
+// custom settings, run `zed: open default settings` from the
+// command palette (cmd-shift-p / ctrl-shift-p)
+{
+  "language_models": {
+    "openai_compatible": {
+      "9router": {
+        "api_url": "https://ai.zulfifazhar.dev/v1",
+        "available_models": [
+          {
+            "name": "ag/gemini-3.8-flash-high",
+            "max_tokens": 200000,
+            "max_output_tokens": 32000,
+            "max_completion_tokens": 200000,
+            "reasoning_effort": "max",
+            "capabilities": {
+              "tools": true,
+              "images": true,
+              "parallel_tool_calls": true,
+              "prompt_cache_key": true,
+              "chat_completions": true,
+              "interleaved_reasoning": false,
+              "max_tokens_parameter": true
+            }
+          }
+        ]
+      }
+    }
+  },
+  "soft_wrap": "editor_width",
+  "minimap": {
+    "show": "auto"
+  },
+  "cli_default_open_behavior": "existing_window",
+  "outline_panel": {
+    "dock": "left"
+  },
+  "collaboration_panel": {
+    "dock": "left"
+  },
+  "git_panel": {
+    "dock": "left"
+  },
+  "agent": {
+    "default_model": {
+      "provider": "9router",
+      "model": "ag/gemini-3.8-flash-high",
+      "enable_thinking": true,
+      "effort": "max"
+    },
+    "dock": "right",
+    "favorite_models": [],
+    "model_parameters": []
+  },
+  "project_panel": {
+    "dock": "left"
+  },
+  "icon_theme": "Colored Zed Icons Theme Dark",
+  "base_keymap": "VSCode",
+  "ui_font_size": 16,
+  "buffer_font_size": 16,
+  "theme": {
+    "mode": "system",
+    "light": "One Light",
+    "dark": "JetBrains Islands Dark"
+  },
+  "buffer_font_family": "CaskaydiaCove Nerd Font",
+  "multi_cursor_modifier": "cmd_or_ctrl",
+  "languages": {
+    "Nix": {
+      "language_servers": [
+        "nixd",
+        "!nil"
+      ]
+    },
+    "QML": {
+      "formatter": {
+        "external": {
+          "command": "sh",
+          "arguments": [
+            "-c",
+            "tmp=$(mktemp --suffix .qml); cat > $tmp; qmlformat $tmp"
+          ]
+        }
+      }
+    }
+  },
+  "lsp": {
+    "nixd": {
+      "settings": {
+        "nixpkgs": {
+          "expr": "import (builtins.getFlake (builtins.toString ./.)).inputs.nixpkgs {}"
+        },
+        "formatting": {
+          "command": [
+            "alejandra"
+          ]
+        }
+      }
+    },
+    "qml": {
+      "binary": {
+        "arguments": [
+          "-E"
+        ]
+      }
+    }
+  },
+  "format_on_save": "on",
+  "auto_indent": "syntax_aware",
+  "auto_indent_on_paste": true,
+  "remove_trailing_whitespace_on_save": true,
+  "ensure_final_newline_on_save": true
+}
